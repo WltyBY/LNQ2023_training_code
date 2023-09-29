@@ -1,0 +1,11 @@
+{
+    "labels": {
+        "background": 0,
+        "Lymph": 1
+    },
+    "numTraining": 393,
+    "file_ending": ".nrrd",
+    "channel_names": {
+        "0": "CT"
+    }
+}
