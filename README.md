@@ -80,13 +80,15 @@ nnUNetv2_train 80 3d_fullres all -tr=nnUNetPreTrainerVNetv2 -pretrained_weights=
 
 In /hy-tmp/nnUNet_results/Dataset080_LNQ2023/nnUNetPreTrainerVNetv2_nnUNetPlans_3d_fullres/fold_all folder, use checkpoint_final.pth as the result, because when doing training, the ground_truth is not accessible.
 
+# Infer
 
+**Note**: In order to save time, it would be better to preprocess the images inferred later. To do this, run **lung_crop_without_seg.py**.
 
+```bash
+nnUNetv2_predict -i data_path_after_preprocess_above -o output_save_path -d 80 -p nnUNetPlans -c 3d_fullres -f all -tr=nnUNetPreTrainerVNetv2
+```
 
+Then, run **rename_val_seg.py**, **label_refine.py**, **resize_to_val.py** in turn.
 
-
-
-
-
-
+However, change the datas' paths in these scripts is needed.
 

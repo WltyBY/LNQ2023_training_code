@@ -210,24 +210,14 @@ def lungmask(vol):
     return label.astype("uint8")
 
 
-def crop_to_lung_area(file_path, img_save_path, seg_path, seg_save_path):
+def crop_to_lung_area(file_path, save_path):
     vol = sitk.ReadImage(file_path)
-    seg = sitk.ReadImage(seg_path)
+    vol_array = sitk.GetArrayFromImage(vol)
     crop_to_body = crop_ct_scan(vol)
-    seg_array = sitk.GetArrayFromImage(seg)
-
-    mask = lungmask(crop_to_body)
-
-    bbmin = [0, 0, 0]
-    bbmax = [0, 0, 0]
-    bbmin_img, bbmax_img = get_ND_bounding_box(mask)
-    bbmin_seg, bbmax_seg = get_ND_bounding_box(seg_array, margin=(5, 10, 10))
-    for i in range(len(bbmin_img)):
-        bbmin[i] = min(bbmin_img[i], bbmin_seg[i])
-        bbmax[i] = max(bbmax_img[i], bbmax_seg[i])
-
-    crop_shape = sitk.GetArrayFromImage(vol).shape
+    crop_shape = sitk.GetArrayFromImage(crop_to_body).shape
     center = np.array(crop_shape) // 2
+    mask = lungmask(crop_to_body)
+    bbmin, bbmax = get_ND_bounding_box(mask)
     for i in range(1, 3):
         if (center[i] - bbmin[i]) * 0.5 > (bbmax[i] - center[i]) and bbmin[i] < center[i]:
             bbmax[i] = crop_shape[i] - bbmin[i]
@@ -236,49 +226,36 @@ def crop_to_lung_area(file_path, img_save_path, seg_path, seg_save_path):
 
     origin = vol.GetOrigin()
     spacing = vol.GetSpacing()
-    origin_output = tuple([origin[i] + spacing[i] * bbmin[i] for i in range(len(bbmin))])
-    img_output = crop_ND_volume_with_bounding_box(sitk.GetArrayFromImage(vol), bbmin, bbmax)
-    seg_output = crop_ND_volume_with_bounding_box(seg_array, bbmin, bbmax)
+    origin_output = tuple([origin[i] + spacing[i] * bbmin[::-1][i] for i in range(len(bbmin))])
+    # print(bbmin)
+    output = crop_ND_volume_with_bounding_box(sitk.GetArrayFromImage(crop_to_body), bbmin, bbmax)
 
-    img_output = sitk.GetImageFromArray(img_output)
-    img_output.SetOrigin(origin_output)
-    img_output.SetSpacing(spacing)
-    img_output.SetDirection(vol.GetDirection())
-    sitk.WriteImage(img_output, img_save_path)
+    img_sub_obj = sitk.GetImageFromArray(output)
+    img_sub_obj.SetOrigin(origin_output)
+    img_sub_obj.SetSpacing(spacing)
+    img_sub_obj.SetDirection(vol.GetDirection())
 
-    seg_output = sitk.GetImageFromArray(seg_output)
-    seg_output.SetOrigin(origin_output)
-    seg_output.SetSpacing(spacing)
-    seg_output.SetDirection(vol.GetDirection())
-    sitk.WriteImage(seg_output, seg_save_path)
+    sitk.WriteImage(img_sub_obj, save_path)
 
 
 if __name__ == "__main__":
-    img_folder_path = "./imagesTr1"
-    seg_folder_path = "./labelsTr1"
-    img_save_folder = "./imagesTr"
-    seg_save_folder = "./labelsTr"
-    if not os.path.isdir(img_save_folder):
-        os.mkdir(img_save_folder)
-    if not os.path.isdir(seg_save_folder):
-        os.mkdir(seg_save_folder)
-
-    file_lst = os.listdir(img_folder_path)
+    folder_path = "./val"
+    save_folder = "./val_crop"
+    if not os.path.isdir(save_folder):
+        # 创建文件夹p
+        os.mkdir(save_folder)
+    file_lst = os.listdir(folder_path)
     length = len(file_lst)
     i = 1
     start = time.time()
     for file in file_lst:
         print("{}/{} Processing: {}".format(i, length, file))
         i += 1
-        idx = file.split("_")[1]
-        file_path = os.path.join(img_folder_path, file)
-        img_save_path = os.path.join(img_save_folder, file)
-        seg_filename = "LNQ2023_{}.nrrd".format(idx)
-        seg_path = os.path.join(seg_folder_path, seg_filename)
-        seg_save_path = os.path.join(seg_save_folder, seg_filename)
-
+        idx = file.split("-")[2]
+        file_path = os.path.join(folder_path, file)
+        img_save_filename = "LNQ2023_{}_0000.nrrd".format(idx)
+        save_path = os.path.join(save_folder, img_save_filename)
         start_case = time.time()
-        crop_to_lung_area(file_path, img_save_path, seg_path, seg_save_path)
+        crop_to_lung_area(file_path, save_path)
         print("Cost: {:.2f}s".format(time.time() - start_case))
-
     print("AVG Processing Cost: {:.2f}s".format((time.time() - start) / len(file_lst)))
