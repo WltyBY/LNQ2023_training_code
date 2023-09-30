@@ -97,3 +97,5 @@ However, change the datas' paths in these scripts is needed.
 In the **Algorithm** folder, the codes are written to process per case at one time, not like the infer way above which does per step all images together.
 
 Before you use codes in this folder to create a docker, copy **nnUNet** folder I provide into **Algorithm** folder.
+
+To run test.sh, your data should be in **/Algorithm/test/images/mediastinal-ct**, or you should change the path in test.sh.
