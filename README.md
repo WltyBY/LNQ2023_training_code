@@ -95,3 +95,5 @@ However, change the datas' paths in these scripts is needed.
 # How to make a docker
 
 In the **Algorithm** folder, the codes are written to process per case at one time, not like the infer way above which does per step all images together.
+
+Before you use codes in this folder to create a docker, copy **nnUNet** folder I provide into **Algorithm** folder.
