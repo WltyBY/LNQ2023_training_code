@@ -212,17 +212,21 @@ def lungmask(vol):
 
 def crop_to_lung_area(file_path, save_path):
     vol = sitk.ReadImage(file_path)
-    vol_array = sitk.GetArrayFromImage(vol)
     crop_to_body = crop_ct_scan(vol)
     crop_shape = sitk.GetArrayFromImage(crop_to_body).shape
     center = np.array(crop_shape) // 2
     mask = lungmask(crop_to_body)
     bbmin, bbmax = get_ND_bounding_box(mask)
     for i in range(1, 3):
-        if (center[i] - bbmin[i]) * 0.5 > (bbmax[i] - center[i]) and bbmin[i] < center[i]:
-            bbmax[i] = crop_shape[i] - bbmin[i]
-        elif bbmin[i] > center[i]:
+        if bbmin[i] < center[i] < bbmax[i]:
+            if (center[i] - bbmin[i]) / (bbmax[i] - center[i]) >= 2:
+                bbmax[i] = crop_shape[i] - bbmin[i]
+            elif (center[i] - bbmin[i]) / (bbmax[i] - center[i]) <= 0.5:
+                bbmin[i] = crop_shape[i] - bbmax[i]
+        elif bbmin[i] >= center[i]:
             bbmin[i] = crop_shape[i] - bbmax[i]
+        elif bbmax[i] <= center[i]:
+            bbmax[i] = crop_shape[i] - bbmin[i]
 
     origin = vol.GetOrigin()
     spacing = vol.GetSpacing()

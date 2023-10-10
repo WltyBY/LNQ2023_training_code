@@ -221,15 +221,20 @@ def crop_to_lung_area(file_path, img_save_path, seg_path, seg_save_path):
     vol = sitk.ReadImage(file_path)
     seg = sitk.ReadImage(seg_path)
     crop_to_body, seg_crop_to_body = crop_ct_scan(vol, seg)
+    # sitk.WriteImage(crop_to_body, "/home/wlty/disk2/nnUNet_data/nnUNet_raw/Dataset110_CTLymphNodes/body.nii.gz")
     seg_array = sitk.GetArrayFromImage(seg_crop_to_body)
 
     mask = lungmask(crop_to_body)
+    # mask_obj = sitk.GetImageFromArray(mask)
+    # mask_obj.CopyInformation(crop_to_body)
+    # sitk.WriteImage(mask_obj, "/home/wlty/disk2/nnUNet_data/nnUNet_raw/Dataset110_CTLymphNodes/mask.nii.gz")
 
     bbmin = [0, 0, 0]
     bbmax = [0, 0, 0]
     bbmin_img, bbmax_img = get_ND_bounding_box(mask)
     # print(bbmin_img, bbmax_img)
     bbmin_seg, bbmax_seg = get_ND_bounding_box(seg_array, margin=(5, 10, 10))
+    # print(bbmin_seg, bbmax_seg)
     for i in range(len(bbmin_img)):
         bbmin[i] = min(bbmin_img[i], bbmin_seg[i])
         bbmax[i] = max(bbmax_img[i], bbmax_seg[i])
@@ -239,10 +244,11 @@ def crop_to_lung_area(file_path, img_save_path, seg_path, seg_save_path):
     # print(center)
     
     for i in range(1, 3):
-        if (center[i] - bbmin[i]) * 0.5 > (bbmax[i] - center[i]) and bbmin[i] < center[i]:
-            bbmax[i] = crop_shape[i] - bbmin[i]
-        elif (bbmax[i] - center[i]) * 0.5 > (center[i] - bbmin[i]) and bbmax[i] > center[i]:
-            bbmax[i] = crop_shape[i] - bbmin[i]
+        if bbmin[i] < center[i] < bbmax[i]:
+            if (center[i] - bbmin[i])/(bbmax[i] - center[i]) >= 2:
+                bbmax[i] = crop_shape[i] - bbmin[i]
+            elif (center[i] - bbmin[i])/(bbmax[i] - center[i]) <= 0.5:
+                bbmin[i] = crop_shape[i] - bbmax[i]
         elif bbmin[i] >= center[i]:
             bbmin[i] = crop_shape[i] - bbmax[i]
         elif bbmax[i] <= center[i]:
@@ -268,8 +274,8 @@ def crop_to_lung_area(file_path, img_save_path, seg_path, seg_save_path):
 
 
 if __name__ == "__main__":
-    img_folder_path = "./imagesTr_before_crop"
-    seg_folder_path = "./labelsTr_before_crop"
+    img_folder_path = "./imagesTr1"
+    seg_folder_path = "./labelsTr1"
     img_save_folder = "./imagesTr"
     seg_save_folder = "./labelsTr"
     if not os.path.isdir(img_save_folder):
