@@ -86,11 +86,12 @@ def get_largest_k_components(image, k=1):
     return output[0] if k == 1 else output
 
 
-def crop_ct_scan(input_img):
+def crop_ct_scan(input_img, input_seg):
     """
     Crop a CT scan based on the bounding box of the human region.
     """
     img = sitk.GetArrayFromImage(input_img)
+    seg = sitk.GetArrayFromImage(input_seg)
 
     mask = np.asarray(img > -600)
     se = np.ones([3, 3, 3])
@@ -108,7 +109,13 @@ def crop_ct_scan(input_img):
     img_sub_obj.SetSpacing(spacing)
     img_sub_obj.SetDirection(input_img.GetDirection())
 
-    return img_sub_obj
+    seg_sub = crop_ND_volume_with_bounding_box(seg, bbmin, bbmax)
+    seg_sub_obj = sitk.GetImageFromArray(seg_sub)
+    seg_sub_obj.SetOrigin(new_origin)
+    seg_sub_obj.SetSpacing(spacing)
+    seg_sub_obj.SetDirection(input_img.GetDirection())
+
+    return img_sub_obj, seg_sub_obj
 
 
 def get_human_region_mask(img):
@@ -213,31 +220,38 @@ def lungmask(vol):
 def crop_to_lung_area(file_path, img_save_path, seg_path, seg_save_path):
     vol = sitk.ReadImage(file_path)
     seg = sitk.ReadImage(seg_path)
-    crop_to_body = crop_ct_scan(vol)
-    seg_array = sitk.GetArrayFromImage(seg)
+    crop_to_body, seg_crop_to_body = crop_ct_scan(vol, seg)
+    seg_array = sitk.GetArrayFromImage(seg_crop_to_body)
 
     mask = lungmask(crop_to_body)
 
     bbmin = [0, 0, 0]
     bbmax = [0, 0, 0]
     bbmin_img, bbmax_img = get_ND_bounding_box(mask)
+    # print(bbmin_img, bbmax_img)
     bbmin_seg, bbmax_seg = get_ND_bounding_box(seg_array, margin=(5, 10, 10))
     for i in range(len(bbmin_img)):
         bbmin[i] = min(bbmin_img[i], bbmin_seg[i])
         bbmax[i] = max(bbmax_img[i], bbmax_seg[i])
-
-    crop_shape = sitk.GetArrayFromImage(vol).shape
+        
+    crop_shape = sitk.GetArrayFromImage(crop_to_body).shape
     center = np.array(crop_shape) // 2
+    # print(center)
+    
     for i in range(1, 3):
         if (center[i] - bbmin[i]) * 0.5 > (bbmax[i] - center[i]) and bbmin[i] < center[i]:
             bbmax[i] = crop_shape[i] - bbmin[i]
-        elif bbmin[i] > center[i]:
+        elif (bbmax[i] - center[i]) * 0.5 > (center[i] - bbmin[i]) and bbmax[i] > center[i]:
+            bbmax[i] = crop_shape[i] - bbmin[i]
+        elif bbmin[i] >= center[i]:
             bbmin[i] = crop_shape[i] - bbmax[i]
+        elif bbmax[i] <= center[i]:
+            bbmax[i] = crop_shape[i] - bbmin[i]
 
     origin = vol.GetOrigin()
     spacing = vol.GetSpacing()
-    origin_output = tuple([origin[i] + spacing[i] * bbmin[i] for i in range(len(bbmin))])
-    img_output = crop_ND_volume_with_bounding_box(sitk.GetArrayFromImage(vol), bbmin, bbmax)
+    origin_output = tuple([origin[i] + spacing[i] * bbmin[::-1][i] for i in range(len(bbmin))])
+    img_output = crop_ND_volume_with_bounding_box(sitk.GetArrayFromImage(crop_to_body), bbmin, bbmax)
     seg_output = crop_ND_volume_with_bounding_box(seg_array, bbmin, bbmax)
 
     img_output = sitk.GetImageFromArray(img_output)
@@ -254,8 +268,8 @@ def crop_to_lung_area(file_path, img_save_path, seg_path, seg_save_path):
 
 
 if __name__ == "__main__":
-    img_folder_path = "./imagesTr1"
-    seg_folder_path = "./labelsTr1"
+    img_folder_path = "./imagesTr_before_crop"
+    seg_folder_path = "./labelsTr_before_crop"
     img_save_folder = "./imagesTr"
     seg_save_folder = "./labelsTr"
     if not os.path.isdir(img_save_folder):
@@ -273,7 +287,7 @@ if __name__ == "__main__":
         idx = file.split("_")[1]
         file_path = os.path.join(img_folder_path, file)
         img_save_path = os.path.join(img_save_folder, file)
-        seg_filename = "LNQ2023_{}.nrrd".format(idx)
+        seg_filename = "CTLymphNodes_{}.nii.gz".format(idx)
         seg_path = os.path.join(seg_folder_path, seg_filename)
         seg_save_path = os.path.join(seg_save_folder, seg_filename)
 
