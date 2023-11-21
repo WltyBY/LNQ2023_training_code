@@ -290,10 +290,10 @@ if __name__ == "__main__":
     for file in file_lst:
         print("{}/{} Processing: {}".format(i, length, file))
         i += 1
-        idx = file.split("-")[2]
+        idx = file.split("_")[1]
         file_path = os.path.join(img_folder_path, file)
         img_save_path = os.path.join(img_save_folder, file)
-        seg_filename = "LNQ2023_{}_0000.nrrd".format(idx)
+        seg_filename = "LNQ2023_{}.nrrd".format(idx)
         seg_path = os.path.join(seg_folder_path, seg_filename)
         seg_save_path = os.path.join(seg_save_folder, seg_filename)
 
