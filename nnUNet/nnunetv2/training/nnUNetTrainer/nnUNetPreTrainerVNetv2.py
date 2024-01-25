@@ -69,7 +69,7 @@ from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.training.loss.Program_loss import KL_CE_loss
-from nnunetv2.training.VNetv2 import VNet_CCT_dropout_3D
+from nnunetv2.training.VNetv2_LNQ import VNet_CCT_dropout_3D
 
 
 class nnUNetPreTrainerVNetv2(nnUNetTrainer):
@@ -147,11 +147,11 @@ class nnUNetPreTrainerVNetv2(nnUNetTrainer):
 
         ### Some hyperparameters for you to fiddle with
         self.initial_lr = 1e-2
-        self.weight_decay = 1e-4
+        self.weight_decay = 3e-5
         self.oversample_foreground_percent = 0.33
         self.num_iterations_per_epoch = 250
         self.num_val_iterations_per_epoch = 50
-        self.num_epochs = 200
+        self.num_epochs = 300
         self.current_epoch = 0
 
         ### Dealing with labels/regions
@@ -224,14 +224,26 @@ class nnUNetPreTrainerVNetv2(nnUNetTrainer):
                 self.network = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.network)
                 self.network = DDP(self.network, device_ids=[self.local_rank])
 
-            from nnunetv2.training.loss.Program_loss import total_loss
-            # self.loss = total_loss()
-            self.tverskyLoss = Tversky_and_SCE_loss({'batch_dice': self.configuration_manager.batch_dice, 'alpha': 0.05, 'beta': 0.95,
-                                    'smooth': 1., 'do_bg': True, 'ddp': self.is_ddp}, {'alpha': 0.1, 'beta': 1}, weight_ce=1,
+            from nnunetv2.training.loss.robust_ce_loss import RobustCrossEntropyLoss
+            # weight=torch.Tensor([1, 5.]).to('cuda')
+            self.ce = Tversky_and_SCE_loss({'batch_dice': self.configuration_manager.batch_dice, 'alpha': 0.4, 'beta': 0.6,
+                                    'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {"alpha": 0.8, "beta": 1.}, weight_ce=1,
                                    weight_tversky=1, ignore_label=self.label_manager.ignore_label)
-            self.pce = nn.CrossEntropyLoss(ignore_index=0)
-            self.ce = nn.CrossEntropyLoss()
-            self.KL_CELoss = KL_CE_loss()
+            # self.ce = RobustCrossEntropyLoss() "ignore_index": 0
+            self.pce = RobustCrossEntropyLoss(ignore_index=0)
+            # from nnunetv2.training.loss.Program_loss import SCE_Loss
+            # self.sce = SCE_Loss(alpha=0.1, beta=1.)
+            self.kl_ce = KL_CE_loss()
+
+            self.val_loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice,
+                                   'smooth': 1e-5, 'do_bg': True, 'ddp': self.is_ddp}, {}, weight_ce=1, weight_dice=1,
+                                  ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
+
+            i = np.arange(100)
+            # rampdown_label = i/99
+            # self.weight_label = 0.5 + np.exp(-5 * rampdown_label * rampdown_label) * 0.5
+            rampup_pseudo_label = 1 - i/99
+            self.weight_pseudo_label = np.exp(-5.0 * rampup_pseudo_label * rampup_pseudo_label)
 
             self.was_initialized = True
         else:
@@ -883,6 +895,22 @@ class nnUNetPreTrainerVNetv2(nnUNetTrainer):
         # lrs are the same for all workers so we don't need to gather them in case of DDP training
         self.logger.log('lrs', self.optimizer.param_groups[0]['lr'], self.current_epoch)
 
+    def label_refine_vol(self, input_hardlabel):
+        assert len(input_hardlabel.size()) == 3, "Shape Error when refining labels during training."
+        input_hardlabel = scipy.ndimage.binary_closing(input_hardlabel, iterations=1)
+
+        labeled_img = measure.label(input_hardlabel)
+        regions = measure.regionprops(labeled_img)
+
+        for props in regions:
+            num = props.num_pixels
+            label_id = props.label
+            if num <= 100:
+                labeled_img[labeled_img == label_id] = 0
+        labeled_img[labeled_img != 0] = 1
+
+        return labeled_img
+
     def train_step(self, batch: dict) -> dict:
         data = batch['data']
         target = batch['target']
@@ -903,44 +931,35 @@ class nnUNetPreTrainerVNetv2(nnUNetTrainer):
             output, output_aux = self.network(data)
 
             # Compute Loss
-            main_label_loss = self.tverskyLoss(output, target) + self.pce(output, target[:, 0].long())
-            aux_label_loss = self.tverskyLoss(output_aux, target) + self.pce(output_aux, target[:, 0].long())
+            main_label_loss = self.ce(output, target) + self.pce(output, target)
+            aux_label_loss = self.ce(output_aux, target) + self.pce(output_aux, target)
             loss_by_label = 0.25 * (main_label_loss + aux_label_loss)
 
             beta = random.random() + 1e-10
             main_soft = torch.softmax(output, dim=1)
             aux_soft = torch.softmax(output_aux, dim=1)
-            pseudo_label_soft = torch.softmax((beta * main_soft.detach() + (1.0 - beta) * aux_soft.detach()), dim=1)
+            pseudo_label_soft = torch.softmax((beta * main_soft.detach() + (1.0 - beta) * aux_soft.detach())/0.3, dim=1)
             pseudo_label_soft[:, 0][target[:, 0] == 1] = 1e-4
             pseudo_label_soft[:, 1][target[:, 0] == 1] = 1.0 - 1e-4
-            loss_pseudo_label = 0.5 * (self.KL_CELoss(output, output_aux, pseudo_label_soft) +
-                                       self.KL_CELoss(output_aux, output, pseudo_label_soft))
+            loss_pseudo_label = 0.5 * (self.kl_ce(output, output_aux, pseudo_label_soft) +
+                                       self.kl_ce(output_aux, output, pseudo_label_soft))
 
-            # twoOutput_ce = 0.5 * (self.ce(output, aux_soft) + self.ce(output_aux, main_soft))
-
-            i = np.arange(100)
-            rampdown_label = i/99
-            weight_label = 0.5 + np.exp(-5 * rampdown_label * rampdown_label) * 0.5
-            rampup_pseudo_label = 1 - i/99
-            weight_pseudo_label = np.exp(-5.0 * rampup_pseudo_label * rampup_pseudo_label)
-
-            weight_a = 1
+            weight_label = 1.
             if self.current_epoch <= 99:
                 # weight_a = weight_label[self.current_epoch]
-                weight_b = weight_pseudo_label[self.current_epoch]
+                weight_pseudo = self.weight_pseudo_label[self.current_epoch]
             elif self.current_epoch > 99:
                 # weight_a = 0.5
-                weight_b = 1
+                weight_pseudo = 1.
 
-            l = weight_a * loss_by_label + weight_b * loss_pseudo_label
-            print("Weight_label:", weight_a, ", Weight_pseudo_label:", weight_b)
-            print("Proposedv2 Loss:", l.item())
-            print("loss_by_label:", loss_by_label.item(), ", loss_pseudo_label:", loss_pseudo_label.item())
-            print("pred in label: ", (torch.sum(torch.argmax(main_soft, dim=1, keepdim=False) * target[:, 0]) /
-                                  torch.sum(target[:, 0])).item())
-            print("pred in whole: ", (torch.sum(torch.argmax(main_soft, dim=1, keepdim=False)) /
-                                  np.prod(target.size())).item())
-
+            l = weight_label * loss_by_label + weight_pseudo * loss_pseudo_label
+            # print("-----Proposedv2 Loss:", l.item())
+            # print("Weight_label:", weight_label, ", Weight_pseudo_label:", weight_pseudo)
+            # print("loss_by_label:", loss_by_label.item(), ", loss_pseudo_label:", loss_pseudo_label.item())
+            # print("pred in label: ", (torch.sum(torch.argmax(main_soft, dim=1, keepdim=False) * target[:, 0]) /
+            #                       torch.sum(target[:, 0])).item())
+            # print("pred in whole: ", (torch.sum(torch.argmax(main_soft, dim=1, keepdim=False)) /
+            #                       np.prod(target.size())).item())
 
         if self.grad_scaler is not None:
             self.grad_scaler.scale(l).backward()
@@ -984,9 +1003,9 @@ class nnUNetPreTrainerVNetv2(nnUNetTrainer):
         # If the device_type is 'mps' then it will complain that mps is not implemented, even if enabled=False is set. Whyyyyyyy. (this is why we don't make use of enabled=False)
         # So autocast will only be active if we have a cuda device.
         with autocast(self.device.type, enabled=True) if self.device.type == 'cuda' else dummy_context():
-            output_main, output_aux = self.network(data)
+            output_main, _ = self.network(data)
             del data
-            l = self.tverskyLoss(output_main, target[0])
+            l = self.val_loss(output_main, target[0])
 
         # we only need the output with the highest output resolution
         output = output_main
