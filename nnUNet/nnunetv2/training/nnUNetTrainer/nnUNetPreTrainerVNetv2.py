@@ -69,7 +69,7 @@ from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.training.loss.Program_loss import KL_CE_loss
-from nnunetv2.training.VNetv2_LNQ import VNet_CCT_dropout_3D
+from nnunetv2.training.VNetv2 import VNet_CCT_dropout_3D
 
 
 class nnUNetPreTrainerVNetv2(nnUNetTrainer):

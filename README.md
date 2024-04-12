@@ -1,3 +1,35 @@
+# Main Files
+
+## Training file
+
+Pretraining Trainer: [LNQ2023_training_code/nnUNet/nnunetv2/training/nnUNetTrainer/nnUNetPreTrainer_PED.py at main · WltyBY/LNQ2023_training_code (github.com)](https://github.com/WltyBY/LNQ2023_training_code/blob/main/nnUNet/nnunetv2/training/nnUNetTrainer/nnUNetPreTrainer_PED.py)
+
+Weakly-supervised Trainer: [LNQ2023_training_code/nnUNet/nnunetv2/training/nnUNetTrainer/nnUNetPreTrainerVNetv2.py at main · WltyBY/LNQ2023_training_code (github.com)](https://github.com/WltyBY/LNQ2023_training_code/blob/main/nnUNet/nnunetv2/training/nnUNetTrainer/nnUNetPreTrainerVNetv2.py)
+
+## Model setting
+
+Model for training: [LNQ2023_training_code/nnUNet/nnunetv2/training/VNetv2.py at main · WltyBY/LNQ2023_training_code (github.com)](https://github.com/WltyBY/LNQ2023_training_code/blob/main/nnUNet/nnunetv2/training/VNetv2.py)
+
+# Model's Weight And Docker
+
+## Weight
+
+Google Drive: https://drive.google.com/file/d/1L_ojs101tWh9XtGxAgE0pqceDlZhhaS8/view?usp=sharing
+
+Baidu Netdisk: https://pan.baidu.com/s/1BrOhIUWXxEbyeMOpc5_O8w?pwd=0319
+
+To load the weight, it is better to use function in [LNQ2023_training_code/nnUNet/nnunetv2/run/load_pretrained_weights.py at main · WltyBY/LNQ2023_training_code (github.com)](https://github.com/WltyBY/LNQ2023_training_code/blob/main/nnUNet/nnunetv2/run/load_pretrained_weights.py).
+
+After postprocess, this weight got the results on validation set:
+
+|        |   DSC(%)    | ASSD(mm)  |
+| :----- | :---------: | :-------: |
+| Weight | 54.50±19.84 | 7.59±5.83 |
+
+## Docker
+
+Grand Challenge: [lnq2023v1 - Grand Challenge (grand-challenge.org)](https://grand-challenge.org/algorithms/lnq2023v1/)
+
 # Install nnUNet
 
 Install the nnunetv2 by using
