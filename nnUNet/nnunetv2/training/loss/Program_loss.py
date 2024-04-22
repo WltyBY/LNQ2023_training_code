@@ -73,7 +73,7 @@ class KL_CE_loss(nn.Module):
             variance = torch.sum(self.KL_loss(torch.log(pred_main), pred_aux), dim=1)
         exp_variance = torch.exp(-variance)
 
-        loss = torch.mean(ce_loss * exp_variance + variance)
+        loss = torch.sum(ce_loss * exp_variance + variance)/torch.sum(exp_variance)
 
         return loss
 
