@@ -26,6 +26,8 @@ After postprocess, this weight got the results on validation set:
 | :----- | :---------: | :-------: |
 | Weight | 54.50±19.84 | 7.59±5.83 |
 
+It is worth noting that the ASSD might be larger than normal. This is because, during evaluation, there might be some case fail to predict any foreground voxel, whose ASSD is Nan. I replace Nan with the largest ASSD that has been successfully calculated. And if there is another case that predict very few foreground voxels, the ASSD of it can be extremely large, leading the ASSD on the whole dataset larger than normal.
+
 ## Docker
 
 Grand Challenge: [lnq2023v1 - Grand Challenge (grand-challenge.org)](https://grand-challenge.org/algorithms/lnq2023v1/)
