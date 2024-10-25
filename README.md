@@ -1,5 +1,9 @@
 # Main Files
 
+**[paper link]** [MELBA – Weakly Supervised Lymph Nodes Segmentation Based on Partial Instance Annotations with Pre-trained Dual-branch Network and Pseudo Label Learning](https://www.melba-journal.org/papers/2024:017.html)
+
+![pipeline](img/pipeline.png)
+
 ## Training file
 
 Pretraining Trainer: [LNQ2023_training_code/nnUNet/nnunetv2/training/nnUNetTrainer/nnUNetPreTrainer_PED.py at main · WltyBY/LNQ2023_training_code (github.com)](https://github.com/WltyBY/LNQ2023_training_code/blob/main/nnUNet/nnunetv2/training/nnUNetTrainer/nnUNetPreTrainer_PED.py)
