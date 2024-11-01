@@ -569,7 +569,8 @@ class nnUNetPreTrainer_PED(nnUNetTrainer):
 
         # needed for deep supervision: how much do we need to downscale the segmentation targets for the different
         # outputs?
-        deep_supervision_scales = self._get_deep_supervision_scales()
+        # deep_supervision_scales = self._get_deep_supervision_scales()
+        deep_supervision_scales = None
 
         rotation_for_DA, do_dummy_2d_data_aug, initial_patch_size, mirror_axes = \
             self.configure_rotation_dummyDA_mirroring_and_inital_patch_size()
