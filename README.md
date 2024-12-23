@@ -137,3 +137,18 @@ In the **Algorithm** folder, the codes are written to process per case at one ti
 Before you use codes in this folder to create a docker, copy **nnUNet** folder I provide into **Algorithm** folder.
 
 To run test.sh, your data should be in **/Algorithm/test/images/mediastinal-ct**, or you should change the path in test.sh.
+
+# Citation
+
+```
+@article{wang2024weakly,
+  title={Weakly Supervised Lymph Nodes Segmentation Based on Partial Instance Annotations with Pre-trained Dual-branch Network and Pseudo Label Learning},
+  author={Wang, Litingyu and Qu, Yijie and Luo, Xiangde and Liao, Wenjun and Zhang, Shichuan and Wang, Guotai and others},
+  journal={Machine Learning for Biomedical Imaging},
+  volume={2},
+  number={MICCAI 2023 LNQ challenge special issue},
+  pages={1030--1047},
+  year={2024}
+}
+```
+
