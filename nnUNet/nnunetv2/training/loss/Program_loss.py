@@ -52,7 +52,7 @@ class KL_CE_loss(nn.Module):
     def __init__(self, apply_nonlin=True):
         super(KL_CE_loss, self).__init__()
         self.KL_loss = nn.KLDivLoss(reduction='none')
-        self.ce = nn.CrossEntropyLoss(weight=torch.Tensor([1, 10.]).to('cuda'), reduction='none')
+        self.ce = nn.CrossEntropyLoss(reduction='none')
         # self.ce = nn.CrossEntropyLoss(reduction='none')
         self.apply_nonlin = apply_nonlin
         if self.apply_nonlin:
@@ -73,7 +73,7 @@ class KL_CE_loss(nn.Module):
             variance = torch.sum(self.KL_loss(torch.log(pred_main), pred_aux), dim=1)
         exp_variance = torch.exp(-variance)
 
-        loss = torch.sum(ce_loss * exp_variance + variance)/torch.sum(exp_variance)
+        loss = (ce_loss * exp_variance).sum() / exp_variance.sum() + variance.mean()
 
         return loss
 
