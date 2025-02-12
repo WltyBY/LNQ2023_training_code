@@ -20,8 +20,8 @@ def load_pretrained_weights(network, fname, verbose=False):
 
     skip_strings_in_pretrained = [
         '.seg_layers.',
-        # 'main_final',
-        # 'aux_final'
+        'main_final',
+        'aux_final'
         # 'decoder.'
     ]
 
